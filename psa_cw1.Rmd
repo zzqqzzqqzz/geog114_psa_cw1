@@ -1,0 +1,268 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+plot(cars)
+```
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Cmd+Option+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Cmd+Shift+K* to preview the HTML file). 
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.
+
+```{r reading data}
+library(sf)
+library(sp)
+library(here)
+library(tmap)
+library(tmaptools)
+library(ggplot2)
+library(ggpubr)
+library(dplyr)
+library(tidyverse)
+library(spatstat)
+library(maptools)
+
+st_layers(here("raw_data", "CulturalInfrastructureMap.gpkg"))
+cul_infra<- here("raw_data", "CulturalInfrastructureMap.gpkg")
+lon_bo<- st_read(here("raw_data", "London_Boroughs.gpkg"))%>%
+  select(c(`name`, `gss_code`, `geom`))
+names(lon_bo)
+# read culture infrastructure and 
+
+Set_and_exhibition_building<- st_read(cul_infra, layer = 'Set_and_exhibition_building')
+Skate_Parks<- st_read(cul_infra, layer = 'Skate_Parks')
+Theatres<- st_read(cul_infra, layer = 'Theatres')
+Cinemas<- st_read(cul_infra, layer = 'Cinemas')
+Commercial_galleries<- st_read(cul_infra, layer = 'Commercial_galleries')
+Dance_performance_venues<- st_read(cul_infra, layer = 'Dance_performance_venues')
+Legal_street_art_walls<- st_read(cul_infra, layer = 'Legal_street_art_walls')
+Libraries<- st_read(cul_infra, layer = 'Libraries')
+Museums_and_public_galleries<- st_read(cul_infra, layer = 'Museums_and_public_galleries')
+Outdoor_spaces_for_cultural_use<- st_read(cul_infra, layer = 'Outdoor_spaces_for_cultural_use')
+
+tmap_mode("view")
+qtm(Set_and_exhibition_building)
+class(Set_and_exhibition_building)
+names(Set_and_exhibition_building)
+
+fun_tidy<- function(df) {
+  df$venue_names<- deparse(substitute(df))
+  #df$venue_names<- NA
+  keeping<- c("name","venue_names","borough_code","borough_name","geom")
+  df<- df[keeping]
+  return (df)
+}
+
+Set_and_exhibition_building<- fun_tidy(Set_and_exhibition_building)
+Skate_Parks<- fun_tidy(Skate_Parks)
+Theatres<- fun_tidy(Theatres)
+Cinemas<- fun_tidy(Cinemas)
+Commercial_galleries<- fun_tidy(Commercial_galleries)
+Dance_performance_venues<- fun_tidy(Dance_performance_venues)
+Legal_street_art_walls<- fun_tidy(Legal_street_art_walls)
+Libraries<- fun_tidy(Libraries)
+Museums_and_public_galleries<- fun_tidy(Museums_and_public_galleries)
+Outdoor_spaces_for_cultural_use<- fun_tidy(Outdoor_spaces_for_cultural_use)
+
+
+pop_est<- read_csv(here("raw_data", "housing-density-borough.csv"))%>%
+  filter(`Year`==2019)%>%
+  filter(!str_detect(`Code`,"E12"))%>%
+  filter(!str_detect(`Code`,"E13"))%>%
+  select(c(`Code`, `Name`,`Population`,`Square_Kilometres`, `Population_per_square_kilometre`))
+
+names(pop_est)
+names(pop_est)<- c("code", "name", "pop","km2", "pop_km2")
+names(pop_est)
+```
+
+```{r tidy}
+
+venues<- rbind(Set_and_exhibition_building,
+              Skate_Parks,
+              Theatres,
+              Cinemas,
+              Commercial_galleries,
+              Dance_performance_venues,
+              Legal_street_art_walls,
+              Libraries,
+              Museums_and_public_galleries,
+              Outdoor_spaces_for_cultural_use)%>%
+  filter(!is.na(`borough_code`))%>% #delete records without valid borough code information
+  group_by(borough_code)%>%
+  mutate(count = n())%>%
+  select(c("name", "borough_code","borough_name","venue_names","count","geom")) #reorder columns
+
+names(venues)
+any(duplicated(venues))
+class(venues)
+
+lon_bo<- lon_bo%>%
+  merge(., pop_est, by.x = "gss_code", by.y = "code")%>%
+  select(!"name.y")
+
+venues_count<- venues%>%
+  st_drop_geometry(.)%>%
+  select(c("borough_code","borough_name","count"))%>%
+  unique(.)
+
+```
+
+```{r plot}
+
+tmap_mode("plot")
+tm_shape(lon_bo)+
+  tm_fill("pop_km2",title = "Population Density", palette = "Greys")+
+  tm_compass()+
+  tm_borders()+
+  tm_layout(main.title = "Venue Distribution in London",
+            main.title.size = 2)+
+tm_shape(venues)+
+  tm_dots(size = 0.05, col = "venue_names", title = "Venue Names",palette = "Set3")+
+  tm_layout(legend.outside = TRUE, 
+            legend.outside.position = c('right','top'))
+
+#borough_name ~ venue_count: point
+ggplot(venues_count, aes(x=borough_name, y=count))+
+  geom_point(show.legend = FALSE)+
+  scale_x_discrete(guide = guide_axis(angle = 90)) +
+  scale_y_continuous(name = "count")+
+  labs(title="Venue number in each borough")+
+  theme(plot.title = element_text(size = 10, hjust = 0.5))
+
+lon_bo<- lon_bo%>%
+  merge(., venues_count, by.x = "gss_code", by.y = "borough_code")
+
+#pop/km2 ~ venue_count: point plot
+# ggplot(lon_bo, aes(x=pop_km2, y=count))+
+#   geom_point()+
+#   scale_x_continuous(guide = guide_axis(angle = 90))+
+#   scale_y_continuous(name = "count")+
+#   labs(title="Venue number in each borough")+
+#   theme(plot.title = element_text(size = 10, hjust = 0.5))
+
+boxplot<- ggplot(lon_bo, aes(x=pop_km2, y=count))+
+  geom_boxplot()+
+  scale_x_continuous(guide = guide_axis(angle = 0))+
+  scale_y_continuous(name = "count")+
+  labs(title=" ")+
+  theme(plot.title = element_text(size = 10, hjust = 0.5))
+boxplot #=> 6 outliters
+
+lon_bo_outlier<- lon_bo%>%
+  filter(!`gss_code`=="E09000033")%>%
+  filter(!`gss_code`=="E09000007")
+
+ggplot(lon_bo, aes(x=pop_km2,y=count))+
+  geom_point()+
+  geom_smooth(method="lm")
+  
+gg_lon_bo_outlier<- ggplot(lon_bo_outlier, aes(x=pop_km2,y=count))+
+  geom_point()+
+  labs(title="Correlation of population density and venue number")+
+  geom_smooth(method="lm")+
+  theme(plot.title = element_text(size = 15, hjust = 0.5))+
+  stat_cor(method="pearson",label.x = 2000, label.y = 50,size=5)
+gg_lon_bo_outlier
+```
+
+```{r KDE}
+qtm(lon_bo)
+class(venues)
+lon_bo_sp <- as(lon_bo,'Spatial')
+window <- as.owin.SpatialPolygons(lon_bo_sp)
+window
+
+venue_points_coords<- matrix(unlist(venues$geom),ncol=2,byrow=T)
+venue_ppp<- ppp(x=venue_points_coords[,1],y=venue_points_coords[,2],window=window,check=T)
+#data contain duplicated points
+sum(multiplicity(venue_ppp) > 1) #70 duplicates
+venue_ppp_jitter <- rjitter(venue_ppp,retry=TRUE,nsim=1,drop=TRUE)
+any(duplicated(venue_ppp_jitter))
+
+plot(venue_ppp_jitter)
+
+plot(density.ppp(venue_ppp_jitter,sigma=500,kernel='gaussian'),
+     main = "Density estimation by kernel Gaussain")
+plot(lon_bo$geometry, border = "white",add = TRUE)
+plot(density.ppp(venue_ppp_jitter,sigma=500,kernel='epanechnikov'),
+     main = "Density estimation by kernel Gaussain")
+plot(lon_bo$geometry, border = "white",add = TRUE)
+plot(density.ppp(venue_ppp_jitter,sigma=500,kernel='quartic'),
+     main = "Density estimation by kernel Gaussain")
+plot(lon_bo$geometry, border = "white",add = TRUE)
+plot(density.ppp(venue_ppp_jitter,sigma=500,kernel='disc'),
+     main = "Density estimation by kernel Gaussain")
+plot(lon_bo$geometry, border = "white",add = TRUE)
+#zoom in? 
+```
+
+```{r correlation}
+cor(lon_bo$pop_km2,lon_bo$count)
+cor(lon_bo_outlier$pop_km2,lon_bo_outlier$count)
+
+ggarrange(boxplot,gg_lon_bo_outlier, labels = c("A","B"), ncol = 2, nrow = 1, widths = c(1,3))
+
+```
+
+```{r rate}
+lon_bo$rate<- (lon_bo$count / lon_bo$pop_km2) *100
+
+tm_shape(lon_bo)+
+  tm_fill("rate",title = "Inequality Index", palette = "Reds")+
+  tm_borders()+
+  tm_layout(title = "Civic Inequality of Culture Venues",
+            title.size = 1.5,
+            title.position = c('right', 'top'),
+            legend.position = c('left','bottom'))
+  
+```
+
+```{r facet}
+count_by_venues<- venues%>%
+  st_drop_geometry()%>%
+  group_by(borough_code,venue_names)%>%
+  mutate(count = n())%>%
+  select(c("borough_code","borough_name","venue_names","count"))%>% #reorder columns
+  unique(.)
+
+ggplot(count_by_venues,aes(x=borough_name, y=count, group=venue_names))+
+  geom_area(aes(color = venue_names))+
+  scale_x_discrete(guide = guide_axis(angle = 90))+
+  scale_color_brewer(palette="Set3")+
+  labs(title = "Venue number in each Borough")+
+  facet_grid(venue_names~.)+
+  theme(legend.title = element_blank(),
+        axis.title.x = element_blank(),
+        strip.text.x = element_text(size = 1),
+        strip.text.y = element_blank(),
+        axis.text.x = element_text(size=9),
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank())
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,28 @@
+!table
+!version 300
+!charset WindowsLatin1
+
+Definition Table
+  Type NATIVE Charset "WindowsLatin1"
+  Fields 21
+    OA11CD Char (9) ;
+    LSOA11CD Char (9) ;
+    WD11CD_BF Char (9) ;
+    WD11NM_BF Char (60) ;
+    LAD11CD Char (9) ;
+    LAD11NM Char (40) ;
+    RGN11CD Char (9) ;
+    LSOA11NM Char (40) ;
+    USUALRES Decimal (9, 0) ;
+    HHOLDRES Decimal (9, 0) ;
+    COMESTRES Decimal (9, 0) ;
+    POPDEN Decimal (20, 4) ;
+    HHOLDS Decimal (9, 0) ;
+    AVHHOLDSZ Decimal (20, 4) ;
+    PunCare Decimal (8, 2) ;
+    PLMTACT Decimal (8, 2) ;
+    area Decimal (9, 3) ;
+    OA Char (254) ;
+    Sub Char (254) ;
+    Super Char (254) ;
+    Group Char (50) ;

@@ -1,0 +1,5 @@
+Contains National Statistics data © Crown copyright and database right 2014
+Contains Ordnance Survey data © Crown copyright and database right 2014
+
+
+Data are copyright © Census Information Scheme. Adapted from data from the Office for National Statistics licenced under the Open Government Licence v.1.0.
